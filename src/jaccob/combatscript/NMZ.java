@@ -69,7 +69,7 @@ public class NMZ extends PollingScript<ClientContext> implements PaintListener{
 	private static final int STATS_MAGIC_ID = 6;
 	private static final int STATS_HP_ID = 9;
 	
-	private static final int TRAINING_MODE = STATS_ATTACK_ID;
+	private static final int TRAINING_MODE = STATS_STRENGTH_ID;
 
 	enum ScriptMode {
 		IDLE, MOVING, TARGETTING, IN_COMBAT
@@ -79,6 +79,8 @@ public class NMZ extends PollingScript<ClientContext> implements PaintListener{
 	Npc targetted = null;
 	Npc hovering = null;
 	int points = getPoints();
+	
+	boolean isAfk = false;
 
 	public NMZ() {
 
@@ -110,6 +112,20 @@ public class NMZ extends PollingScript<ClientContext> implements PaintListener{
 		
 		return -1;
 	}
+	
+	private void goAfk() {
+		if (Math.random() > 0.2) {
+			int x = Math.random() > 0.5 ? -1 : -2;
+			int y = (int) (Math.random() * ctx.game.dimensions().height);
+			
+			System.out.println("Moving to " + x + ", " + y);
+			ctx.input.move(new Point(x, y));
+			
+			isAfk = true;
+		} else {
+			isAfk = false;
+		}
+	}
 
 	@Override
 	public void poll() {
@@ -118,22 +134,36 @@ public class NMZ extends PollingScript<ClientContext> implements PaintListener{
 		int lvl = ctx.skills.level(getCombatSkill());
 		int realLvl = ctx.skills.realLevel(getCombatSkill());
 		
+		boolean doneStuff = false;
+		
 		if (getAbsorptionLevel() < minAbsorption) {
 			for (int i = 0; i < (int)(Math.random() * 5); i++) {
 				ctx.inventory.select().id(_IDS).peek().interact("Drink");
-				Condition.sleep(500 + (int)(Math.random()*400));
+				Condition.sleep(500 + randomNum(400));
 			}
 			
-			minAbsorption = 100 + (int)(Math.random() * 100);
+			minAbsorption = 100 + randomNum(100);
+			doneStuff = true;
+			isAfk = false;
 		}
 		
 		if (lvl <= realLvl) {
+			if (isAfk)
+				Condition.sleep(3000 + randomNum(5000));
+			
+			isAfk = false;
 			if (ctx.inventory.select().id(OVERLOAD_IDS).peek().interact("Drink")) {
-				Condition.sleep(10000);
+				Condition.sleep(13000 + randomNum(5000));
+				doneStuff = true;
 			}
 		} else if (ctx.skills.level(Constants.SKILLS_HITPOINTS) > 1) {
+			if (isAfk)
+				Condition.sleep(randomNum(5000));
+			
+			isAfk = false;
 			if (ctx.inventory.select().id(ROCK_CAKE).peek().interact("Guzzle")) {
-				Condition.sleep(2000);
+				Condition.sleep(2000 + randomNum(5000));
+				doneStuff = true;
 			}
 		}
 		
@@ -142,15 +172,23 @@ public class NMZ extends PollingScript<ClientContext> implements PaintListener{
 			
 			randomTimeout = System.currentTimeMillis() + 17000 + (int)(Math.random()*20000);
 			ctx.prayer.quickPrayer(true);
-			Condition.sleep(300 + (int)(Math.random()*300));
+			Condition.sleep(300 + randomNum(300));
 			ctx.prayer.quickPrayer(false);
+			Condition.sleep(200 + randomNum(300));
+			
+			isAfk = false;
+			doneStuff = true;
 		}
+		
+		if (doneStuff) {
+			System.out.println("Did stuff");
+			goAfk();
+		}
+		
 	}
-	
-	private void specialAttack() {
-		if (ctx.combat.specialPercentage() > 60) {
-			ct
-		}
+
+	private int randomNum(int r) {
+		return (int)(Math.random() * r);
 	}
 	
 	int minAbsorption = 150;
@@ -164,27 +202,10 @@ public class NMZ extends PollingScript<ClientContext> implements PaintListener{
 		return Integer.parseInt(ctx.widgets.widget(202).component(1).component(9).text());
 	}
 	
-	private void moveMouseNear(Npc npc) {
-		Point p = ctx.input.getLocation();
-		Point npcPos = npc.centerPoint();
-
-		if (npcPos.x > 0) {
-			ctx.input.move(npcPos.x + (-5 + ((int)(Math.random() * 10))), npcPos.y + (-5 + ((int)(Math.random() * 10))));
-		}
-	}
-	
-	private static final void sleep(long ms) {
-		try {
-			Thread.currentThread().sleep(ms);
-		} catch (InterruptedException e) {
-			e.printStackTrace();
-		}
-	}
-	
 	//320 = stats tab
 
 	private void antiban() {
-		if (Math.random() > 0.99) {
+		if (!isAfk && Math.random() > 0.995) {
 			ctx.camera.angle((int)(Math.random() * 360));
 		} else if (Math.random() > 0.98) {
 			ctx.game.tab(Tab.INVENTORY);
@@ -254,14 +275,16 @@ public class NMZ extends PollingScript<ClientContext> implements PaintListener{
 		int currentExp = getXPFromCombatStyle();
 		int expGain = currentExp - startXP;
 		int expPh = (int) (3600000d / (long) runTime * (double) (expGain));
-		int xpNextLevel = ctx.skills.experienceAt(ctx.skills.level(Constants.SKILLS_DEFENSE) + 1);
+		int xpNextLevel = ctx.skills.experienceAt(ctx.skills.realLevel(getCombatSkill()) + 1);
 		
 		if (expPh == 0)
 			expPh = 1;
 		
-		int timeToLevel = ((xpNextLevel - currentExp) / expPh) * 3600000;
+		int xpToLevel = xpNextLevel - currentExp;
+		double ratio = xpToLevel / (double) expPh;
+		int timeToLevel = (int)(ratio * 3600000);
 				
-		return (currentExp - startXP) + " (" + expPh + " / Hr, TTL: " + formatInterval(timeToLevel, false) + ")";
+		return (currentExp - startXP) + " (" + expPh + " / Hr, XTL: " + xpToLevel + ", TTL: " + formatInterval(timeToLevel, false) + ")";
 	}
 	
 	private String getPointsString() {
@@ -303,5 +326,8 @@ public class NMZ extends PollingScript<ClientContext> implements PaintListener{
 		g2.drawString("Time running: " + formatInterval(runtime, false), 10, 150);
 		g2.drawString("Xp: " + getXPString(), 10, 170);
 		g2.drawString("Points: " + getPointsString(), 10, 190);
+		g2.drawString("Combat level: " + ctx.players.local().combatLevel(), 10, 210);
+		g2.drawString("Skill level: " + ctx.skills.realLevel(getCombatSkill()), 10, 230);
+		g2.drawString("Is AFK?: " + isAfk, 10, 250);
 	}
 }
