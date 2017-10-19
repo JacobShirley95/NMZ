@@ -136,6 +136,27 @@ public class NMZ extends PollingScript<ClientContext> implements PaintListener{
 		
 		boolean doneStuff = false;
 		
+		int hp = ctx.skills.level(Constants.SKILLS_HITPOINTS);
+		
+		if (lvl <= realLvl) {
+			if (isAfk)
+				Condition.sleep(3000 + randomNum(5000));
+			
+			isAfk = false;
+			if (ctx.inventory.select().id(OVERLOAD_IDS).peek().interact("Drink")) {
+				doneStuff = true;
+			}
+		} else if (hp > 1 && hp < 5) {
+			if (isAfk)
+				Condition.sleep(randomNum(5000));
+			
+			isAfk = false;
+			if (ctx.inventory.select().id(ROCK_CAKE).peek().interact("Guzzle")) {
+				Condition.sleep(2000 + randomNum(5000));
+				doneStuff = true;
+			}
+		}
+		
 		if (getAbsorptionLevel() < minAbsorption) {
 			for (int i = 0; i < (int)(Math.random() * 5); i++) {
 				ctx.inventory.select().id(_IDS).peek().interact("Drink");
@@ -147,27 +168,7 @@ public class NMZ extends PollingScript<ClientContext> implements PaintListener{
 			isAfk = false;
 		}
 		
-		if (lvl <= realLvl) {
-			if (isAfk)
-				Condition.sleep(3000 + randomNum(5000));
-			
-			isAfk = false;
-			if (ctx.inventory.select().id(OVERLOAD_IDS).peek().interact("Drink")) {
-				Condition.sleep(13000 + randomNum(5000));
-				doneStuff = true;
-			}
-		} else if (ctx.skills.level(Constants.SKILLS_HITPOINTS) > 1) {
-			if (isAfk)
-				Condition.sleep(randomNum(5000));
-			
-			isAfk = false;
-			if (ctx.inventory.select().id(ROCK_CAKE).peek().interact("Guzzle")) {
-				Condition.sleep(2000 + randomNum(5000));
-				doneStuff = true;
-			}
-		}
-		
-		if (ctx.skills.level(Constants.SKILLS_HITPOINTS) == 1 &&
+		if (hp == 1 &&
 			System.currentTimeMillis() >= randomTimeout) {
 			
 			randomTimeout = System.currentTimeMillis() + 17000 + (int)(Math.random()*20000);
